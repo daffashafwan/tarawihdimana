@@ -1,15 +1,32 @@
-package tarawihdimana
+package main
 
 import (
-	"fmt"
+	"log"
 	"net/http"
+	"tarawihdimana/routes"
+
+	"github.com/gorilla/handlers"
+	appHandler "tarawihdimana/handlers"
+	"tarawihdimana/env"
 )
 
 func main() {
-	// Define the endpoint for finding the nearest place
-	http.HandleFunc("/nearest-place", getNearestPlaceHandler)
 
-	// Start the server on port 8080
-	fmt.Println("Server is running on http://localhost:8080")
-	http.ListenAndServe(":9999", nil)
+	env.LoadEnv()
+
+	appHandler.InitAPIKEY()
+
+	router := routes.NewRouter()
+
+	// Define CORS options
+	headersOk := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"})
+	originsOk := handlers.AllowedOrigins([]string{"*"})
+	methodsOk := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"})
+
+	log.Print("Server starting\n")
+	// Wrap the router with the CORS middleware
+	err := http.ListenAndServe(":9999", handlers.CORS(headersOk, originsOk, methodsOk)(router))
+	if err != nil {
+		log.Fatal("ListenAndServe: ", err)
+	}
 }
