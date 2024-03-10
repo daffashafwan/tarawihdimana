@@ -7,10 +7,14 @@ import (
 
 // NewRouter creates and returns a new router.
 func NewRouter() *mux.Router {
-	router := mux.NewRouter()
+    router := mux.NewRouter()
 
-	// Handle the "/getRandomNearestMosque" route with the corresponding handler
-	router.HandleFunc("/random-nearest-mosque", handlers.GetRandomNearestMosqueHandler).Methods("GET")
+    // Add a prefix to the routes
+    apiPrefix := "/tarawihdimana"
+    apiRouter := router.PathPrefix(apiPrefix).Subrouter()
 
-	return router
+    // Handle the "/getRandomNearestMosque" route with the corresponding handler
+    apiRouter.HandleFunc("/random-nearest-mosque", handlers.GetRandomNearestMosqueHandler).Methods("GET")
+
+    return router
 }
