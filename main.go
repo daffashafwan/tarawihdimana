@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"tarawihdimana/routes"
 
-	"github.com/gorilla/handlers"
 	appHandler "tarawihdimana/handlers"
 	"tarawihdimana/env"
+	"tarawihdimana/middleware"
 )
 
 func main() {
@@ -18,14 +18,13 @@ func main() {
 
 	router := routes.NewRouter()
 
-	// Define CORS options
-	headersOk := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"})
-	originsOk := handlers.AllowedOrigins(env.GetAllowedOrigins())
-	methodsOk := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"})
+	rateLimitedRouter := middleware.RateLimitMiddleware(router)
 
+	corsHandler := middleware.CorsMiddleware(rateLimitedRouter)
+
+	// Start the server with the CORS and rate-limited handler
 	log.Print("Server starting\n")
-	// Wrap the router with the CORS middleware
-	err := http.ListenAndServe(":9999", handlers.CORS(headersOk, originsOk, methodsOk)(router))
+	err := http.ListenAndServe(":9999", corsHandler)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}

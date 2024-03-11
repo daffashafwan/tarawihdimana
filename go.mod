@@ -10,5 +10,6 @@ require (
 require (
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/joho/godotenv v1.5.1
+	github.com/juju/ratelimit v1.0.2
 	github.com/pkg/errors v0.9.1
 )
