@@ -20,7 +20,7 @@ func GetAllowedOrigins() []string{
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 
 	if allowedOrigins == "" {
-		// Default to allowing all origins if not set
+		log.Print("using all origins")
 		return []string{"*"}
 	}
 
