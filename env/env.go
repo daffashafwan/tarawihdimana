@@ -19,8 +19,8 @@ func LoadEnv() {
 func GetAllowedOrigins() []string{
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 
+	log.Printf("Allowed Origins: %v\n", allowedOrigins)
 	if allowedOrigins == "" {
-		log.Print("using all origins")
 		return []string{"*"}
 	}
 
