@@ -128,6 +128,12 @@ func GetRandomNearestMosqueHandler(w http.ResponseWriter, r *http.Request) {
 		arrayRes = res
 	}
 
+	if len(arrayRes) == 0 {
+		err = errors.New("No mosque found")
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
 	randomIndex := rand.Intn(len(arrayRes))
 	randomMosque := arrayRes[randomIndex]
 
