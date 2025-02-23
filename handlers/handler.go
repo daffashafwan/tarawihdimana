@@ -6,7 +6,10 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -56,7 +59,42 @@ type RequestData struct {
 	UseCache  bool    `json:"useCache"`
 }
 
+type CityData struct {
+	ID     string `json:"id"`
+	Lokasi string `json:"lokasi"`
+}
+
+type CityResponse struct {
+	Status  bool    `json:"status"`
+	Data    []CityData  `json:"data"`
+}
+
+type Jadwal struct {
+	Tanggal string `json:"tanggal"`
+	Imsak   string `json:"imsak"`
+	Subuh   string `json:"subuh"`
+	Terbit  string `json:"terbit"`
+	Dhuha   string `json:"dhuha"`
+	Dzuhur  string `json:"dzuhur"`
+	Ashar   string `json:"ashar"`
+	Maghrib string `json:"maghrib"`
+	Isya    string `json:"isya"`
+	Date    string `json:"date"`
+}
+
+type Data struct {
+	ID     int    `json:"id"`
+	Lokasi string `json:"lokasi"`
+	Daerah string `json:"daerah"`
+	Jadwal Jadwal `json:"jadwal"`
+}
+
+type PrayerTimeResponss struct {
+	Data    Data    `json:"data"`
+}
+
 var cacheAPIResponse map[string][]Item
+var cityDatas []CityData 
 var ApiKey string
 var cacheMutex sync.RWMutex
 
@@ -70,7 +108,11 @@ func InitAPIKEY() {
 
 func GetRandomNearestMosqueHandler(w http.ResponseWriter, r *http.Request) {
 	var request RequestData
-	err := json.NewDecoder(r.Body).Decode(&request)
+	cacheToggle, err := strconv.ParseBool(os.Getenv("SEARCH_RESPONSE_USE_CACHE"))
+	if err != nil {
+		cacheToggle = false
+	}
+	err = json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
 		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
 		return
@@ -112,15 +154,18 @@ func GetRandomNearestMosqueHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Ensure cacheAPIResponse is initialized
-		cacheMutex.Lock()
-		if cacheAPIResponse == nil {
-			cacheAPIResponse = make(map[string][]Item)
-		}
 
-		// Update or add the response to the cache
-		cacheAPIResponse[key] = response.Items
-		cacheMutex.Unlock()
+		if cacheToggle {
+			// Ensure cacheAPIResponse is initialized
+			cacheMutex.Lock()
+			if cacheAPIResponse == nil {
+				cacheAPIResponse = make(map[string][]Item)
+			}
+
+			// Update or add the response to the cache
+			cacheAPIResponse[key] = response.Items
+			cacheMutex.Unlock()
+		}
 
 		// Use the response items
 		arrayRes = response.Items
@@ -141,6 +186,39 @@ func GetRandomNearestMosqueHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(randomMosque)
 }
 
+func GetPrayerTimesHandler(w http.ResponseWriter, r *http.Request) {
+	city := r.URL.Query().Get("city")
+    if city == "" {
+        http.Error(w, "Query parameter 'city' is required", http.StatusBadRequest)
+        return
+    }
+
+	dataCity := cityDatas
+	if len(dataCity) == 0 {
+		cityResponse, err := callCityAPI(w)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		dataCity = cityResponse.Data
+	}
+
+	cityID, found := containsCity(city, dataCity)
+	if !found {
+		http.Error(w, "City not found", http.StatusNotFound)
+		return
+	}
+
+	prayerTimeResponse, err := callPrayerTimesAPI(w, cityID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(prayerTimeResponse)
+}
+
 func callOutbound(request RequestData, w http.ResponseWriter) (Response, error) {
 	apiURL := fmt.Sprintf("https://discover.search.hereapi.com/v1/discover?q=masjid&in=circle:%f,%f;r=%d&limit=%d&apikey=%s", request.Latitude, request.Longitude, request.Radius, request.Limit, ApiKey)
 	resp, err := http.Get(apiURL)
@@ -154,5 +232,59 @@ func callOutbound(request RequestData, w http.ResponseWriter) (Response, error) 
 	if err != nil {
 		return Response{}, errors.Wrap(err, "Parse Resp")
 	}
+	return response, nil
+}
+
+func containsCity(target string, cityList []CityData) (string, bool) {
+	targetWords := strings.Fields(target)
+	wordSet := make(map[string]bool)
+	for _, word := range targetWords {
+		wordSet[strings.ToLower(word)] = true
+	}
+
+	for _, city := range cityList {
+		cityWords := strings.Fields(city.Lokasi)
+		for _, word := range cityWords {
+			if wordSet[strings.ToLower(word)] {
+				return city.ID, true
+			}
+		}
+	}
+	return "", false
+}
+
+func callPrayerTimesAPI(w http.ResponseWriter, cityID string) (PrayerTimeResponss, error) {
+	apiURL := fmt.Sprintf("https://api.myquran.com/v2/sholat/jadwal/%s/%s", cityID, time.Now().Format("2006-01-02"))
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		return PrayerTimeResponss{}, errors.Wrap(err, "Outbound Call")
+	}
+	defer resp.Body.Close()
+
+	var response PrayerTimeResponss
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return PrayerTimeResponss{}, errors.Wrap(err, "Parse Resp")
+	}
+	return response, nil
+}
+
+func callCityAPI(w http.ResponseWriter) (CityResponse, error) {
+	apiURL := fmt.Sprintf("https://api.myquran.com/v2/sholat/kota/semua")
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		return CityResponse{}, errors.Wrap(err, "Outbound Call")
+	}
+	defer resp.Body.Close()
+
+	var response CityResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return CityResponse{}, errors.Wrap(err, "Parse Resp")
+	}
+	
+	cacheMutex.Lock()
+	cityDatas = response.Data
+	cacheMutex.Unlock()
 	return response, nil
 }

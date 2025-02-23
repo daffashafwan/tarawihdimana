@@ -15,6 +15,7 @@ func NewRouter() *mux.Router {
 
     // Handle the "/getRandomNearestMosque" route with the corresponding handler
     apiRouter.HandleFunc("/random-nearest-mosque", handlers.GetRandomNearestMosqueHandler).Methods("POST")
+    apiRouter.HandleFunc("/prayer-times", handlers.GetPrayerTimesHandler).Methods("GET")
 
     return router
 }
