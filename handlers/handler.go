@@ -235,22 +235,40 @@ func callOutbound(request RequestData, w http.ResponseWriter) (Response, error) 
 	return response, nil
 }
 
-func containsCity(target string, cityList []CityData) (string, bool) {
-	targetWords := strings.Fields(target)
-	wordSet := make(map[string]bool)
-	for _, word := range targetWords {
-		wordSet[strings.ToLower(word)] = true
-	}
-
+func containsCity(requestCity string, cityList []CityData) (string, bool) {
 	for _, city := range cityList {
-		cityWords := strings.Fields(city.Lokasi)
-		for _, word := range cityWords {
-			if wordSet[strings.ToLower(word)] {
-				return city.ID, true
-			}
+		if isSameCity(requestCity, city.Lokasi) {
+			return city.ID, true
 		}
+
 	}
 	return "", false
+}
+
+func isSameCity(city1, city2 string) bool {
+	return normalizeCityName(city1) == normalizeCityName(city2)
+}
+
+func normalizeCityName(name string) string {
+	var ignoredPrefixes = []string{"KAB. ", "KOTA "}
+	var specialCities = map[string]string {
+		"JAKARTA BARAT": "Jakarta",
+		"JAKARTA UTARA": "Jakarta",
+		"JAKARTA SELATAN": "Jakarta",
+		"JAKARTA TIMUR": "Jakarta",
+		"JAKARTA PUSAT": "Jakarta",
+	}
+	if specialName, found := specialCities[strings.ToTitle(name)]; found {
+		name = specialName
+	}
+	name = strings.ToUpper(name)
+	for _, prefix := range ignoredPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			name = strings.TrimPrefix(name, prefix)
+			break
+		}
+	}
+	return name
 }
 
 func callPrayerTimesAPI(w http.ResponseWriter, cityID string) (PrayerTimeResponss, error) {
