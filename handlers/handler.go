@@ -57,6 +57,7 @@ type RequestData struct {
 	Radius    int     `json:"radius"`
 	Limit     int     `json:"limit"`
 	UseCache  bool    `json:"useCache"`
+	IsRandom  bool    `json:"isRandom"`
 }
 
 type CityData struct {
@@ -179,7 +180,10 @@ func GetRandomNearestMosqueHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	randomIndex := rand.Intn(len(arrayRes))
+	randomIndex := 0
+	if request.IsRandom {
+		randomIndex = rand.Intn(len(arrayRes))
+	}
 	randomMosque := arrayRes[randomIndex]
 
 	w.Header().Set("Content-Type", "application/json")
